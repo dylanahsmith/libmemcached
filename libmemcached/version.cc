@@ -228,3 +228,10 @@ memcached_return_t memcached_version(memcached_st *shell)
 
   return MEMCACHED_INVALID_ARGUMENTS;
 }
+
+int32_t memcached_version_cmp(memcached_instance_st* instance, uint8_t major, uint8_t minor, uint8_t micro)
+{
+  uint32_t cmp_version = (major << 16) | (minor << 8) | micro;
+  uint32_t server_version = (instance->major_version << 16) | (instance->minor_version << 8) | instance->micro_version;
+  return server_version - cmp_version;
+}

@@ -44,13 +44,20 @@
 
 #include <libmemcached/common.h>
 
+static uint32_t max_number_of_slabs(memcached_instance_st* instance)
+{
+  return memcached_version_cmp(instance, 1, 4, 23) >= 0 ? 64 : 200;
+}
+
 static memcached_return_t ascii_dump(Memcached *memc, memcached_dump_fn *callback, void *context, uint32_t number_of_callbacks)
 {
-  /* MAX_NUMBER_OF_SLAB_CLASSES is defined to 200 in Memcached 1.4.10 */
-  for (uint32_t x= 0; x < 200; x++)
+  /* MAX_NUMBER_OF_SLAB_CLASSES was decreased from 200 to 64 in 1.4.23 and
+   * sending too large a slab id results in a client error. */
+  memcached_version(memc);
+  for (uint32_t slab_id = 0; slab_id < 200; slab_id++)
   {
     char buffer[MEMCACHED_DEFAULT_COMMAND_SIZE];
-    int buffer_length= snprintf(buffer, sizeof(buffer), "%u", x);
+    int buffer_length= snprintf(buffer, sizeof(buffer), "%u", slab_id);
     if (size_t(buffer_length) >= sizeof(buffer) or buffer_length < 0)
     {
       return memcached_set_error(*memc, MEMCACHED_MEMORY_ALLOCATION_FAILURE, MEMCACHED_AT, 
@@ -69,6 +76,10 @@ static memcached_return_t ascii_dump(Memcached *memc, memcached_dump_fn *callbac
     for (uint32_t server_key= 0; server_key < memcached_server_count(memc); server_key++)
     {
       memcached_instance_st* instance= memcached_instance_fetch(memc, server_key);
+
+      if (slab_id >= 64 && slab_id >= max_number_of_slabs(instance)) {
+          continue;
+      }
 
       memcached_return_t vdo_rc;
       if (memcached_success((vdo_rc= memcached_vdo(instance, vector, 3, true))))
